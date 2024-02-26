@@ -1,0 +1,7 @@
+- Window and event loop 
+- Get gpu, create surface and adapter
+- get device and queue from adapter
+- configure surface
+- create shader and buffer (vertex and index) vertex buffer needs implementation of vertex struct which has a vertex descriptor
+- create render pipeline 
+- create uniform for camera
