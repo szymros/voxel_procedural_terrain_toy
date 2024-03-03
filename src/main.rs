@@ -1,173 +1,15 @@
+mod camera;
+mod instance;
+mod vertex;
+
+use camera::generate_view_matrix;
+use instance::{Instance, InstanceRaw, NUM_INSTANCES_PER_ROW, INSTANCE_DISPLACEMENT};
+use vertex::{Vertex, VERTICES, INDEX};
 use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
 use winit::event_loop;
 
-const window_size: (u32, u32) = (800, 600);
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
-const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-    0.0,
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-);
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 4],
-    color: [f32; 3],
-}
-
-impl Vertex {
-    fn new(position: [f32; 3], color: [f32; 3]) -> Self {
-        Vertex {
-            position: [
-                position[0] as f32,
-                position[1] as f32,
-                position[2] as f32,
-                1.0,
-            ],
-            color,
-        }
-    }
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
-    }
-}
-
-#[rustfmt::skip]
-const VERTICES: &[Vertex] = &[
-    // top (0, 0, 1)
-    Vertex { position: [-1.0, -1.0, 1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex{ position: [1.0, -1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [1.0, 1.0, 1.0,1.0], color: [1.0, 0.0, 0.0] },
-    Vertex{ position: [-1.0, 1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    // bottom (0, 0, -1)
-    Vertex { position: [-1.0, 1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [1.0, 1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    // right (1, 0, 0)
-    Vertex { position: [1.0, -1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [1.0, 1.0, 1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-
-    // left (-1, 0, 0)
-    Vertex { position: [-1.0, -1.0, 1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-
-    // front (0, 1, 0)
-    Vertex { position: [1.0, 1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-
-    // back (0, -1, 0)
-    Vertex { position: [1.0, -1.0, 1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, 1.0, 1.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0, 1.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, -1.0, 1.0], color: [0.0, 1.0, 0.0] },
-];
-const INDEX: &[u16] = &[
-    0, 1, 2, 2, 3, 0, // top
-    4, 5, 6, 6, 7, 4, // bottom
-    8, 9, 10, 10, 11, 8, // right
-    12, 13, 14, 14, 15, 12, // left
-    16, 17, 18, 18, 19, 16, // front
-    20, 21, 22, 22, 23, 20, // back
-];
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct InstanceRaw {
-    model: [[f32; 4]; 4],
-}
-
-impl InstanceRaw {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    // While our vertex shader only uses locations 0, and 1 now, in later tutorials, we'll
-                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5, not conflict with them later
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 7,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 8,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        }
-    }
-}
-
-struct Instance {
-    position: cgmath::Vector3<f32>,
-    rotation: cgmath::Quaternion<f32>,
-}
-
-impl Instance {
-    fn to_raw(&self) -> InstanceRaw {
-        InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position)
-                * cgmath::Matrix4::from(self.rotation))
-            .into(),
-        }
-    }
-}
-
-const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
-    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0,
-);
-
-fn generate_view_matrix() -> cgmath::Matrix4<f32> {
-    let projection = cgmath::perspective(
-        cgmath::Deg(45.0),
-        window_size.0 as f32 / window_size.1 as f32,
-        1.0,
-        10.0,
-    );
-    let view = cgmath::Matrix4::look_at_rh(
-        cgmath::Point3::new(0.0, -5.0, 3.0),
-        cgmath::Point3::new(0.0, 0.0, 0.0),
-        cgmath::Vector3::unit_y(),
-    );
-    return OPENGL_TO_WGPU_MATRIX * projection * view;
-}
 
 async fn init_gpu(window: &winit::window::Window) {
     // get window size
@@ -238,13 +80,8 @@ async fn init_gpu(window: &winit::window::Window) {
                     z: z as f32,
                 } - INSTANCE_DISPLACEMENT;
 
-                let rotation = if position.is_zero() {
-                    // this is needed so an object at (0, 0, 0) won't get scaled to zero
-                    // as Quaternions can affect scale if they're not created correctly
-                    cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
-                } else {
-                    cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
-                };
+                let rotation = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0));
+             
 
                 Instance { position, rotation }
             })
