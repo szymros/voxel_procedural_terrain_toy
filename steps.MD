@@ -5,3 +5,5 @@
 - create shader and buffer (vertex and index) vertex buffer needs implementation of vertex struct which has a vertex descriptor
 - create render pipeline 
 - create uniform for camera
+- use camera uniform in shader to transform object to view plane
+- add instancing
