@@ -1,14 +1,9 @@
-
-
-
-pub const NUM_INSTANCES_PER_ROW: u32 = 10;
+pub const NUM_INSTANCES_PER_ROW: u32 = 1;
 pub const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
     0.0,
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
 );
-
-
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -51,8 +46,8 @@ impl InstanceRaw {
 }
 
 pub struct Instance {
-   pub position: cgmath::Vector3<f32>,
-   pub rotation: cgmath::Quaternion<f32>,
+    pub position: cgmath::Vector3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
 }
 
 impl Instance {
