@@ -1,9 +1,12 @@
+use std::{f32::consts::FRAC_PI_2, time::Duration};
+
+use cgmath::{InnerSpace, Point3, Rad, Vector3};
 use winit::{
     event::{
         ElementState, KeyEvent,
-        WindowEvent::{self},
+        WindowEvent,
     },
-    keyboard::Key,
+    keyboard::{Key, NamedKey},
 };
 
 const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -12,20 +15,6 @@ const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 
 const WINDOW_SIZE: (u32, u32) = (800, 600);
 
-pub fn generate_view_matrix() -> cgmath::Matrix4<f32> {
-    let projection = cgmath::perspective(
-        cgmath::Deg(45.0),
-        WINDOW_SIZE.0 as f32 / WINDOW_SIZE.1 as f32,
-        1.0,
-        10.0,
-    );
-    let view = cgmath::Matrix4::look_at_rh(
-        cgmath::Point3::new(1.5f32, -5.0, 3.0),
-        cgmath::Point3::new(0.0, 0.0, 0.0),
-        cgmath::Vector3::unit_y(),
-    );
-    return OPENGL_TO_WGPU_MATRIX * projection * view;
-}
 #[repr(C)]
 // This is so we can store this in a buffer
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -33,25 +22,32 @@ pub struct CameraUniform {
     // We can't use cgmath with bytemuck directly, so we'll have
     // to convert the Matrix4 into a 4x4 f32 array
     pub view_proj: [[f32; 4]; 4],
+    pub view_position: [f32; 4],
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         use cgmath::SquareMatrix;
         Self {
+            view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera) {
         self.view_proj = camera.build_view_projection_matrix().into();
+        self.view_position = camera.eye.to_homogeneous().into();
     }
 }
 
 pub struct Camera {
+
+    // view
     pub eye: cgmath::Point3<f32>,
-    pub target: cgmath::Point3<f32>,
-    pub up: cgmath::Vector3<f32>,
+    pub yaw: Rad<f32>,
+    pub pitch: Rad<f32>,
+
+    // projection
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
@@ -60,8 +56,13 @@ pub struct Camera {
 
 impl Camera {
     pub fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
+        let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
+        let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
+        let vec = Vector3::new( cos_pitch*cos_yaw,sin_pitch,cos_pitch*sin_yaw).normalize();
         // 1.
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
+        let view = cgmath::Matrix4::look_at_dir(self.eye, 
+            vec,
+             Vector3::unit_y());
         // 2.
         let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
 
@@ -71,124 +72,118 @@ impl Camera {
 }
 
 pub struct CameraController {
-    pub speed: f32,
-    pub is_forward_pressed: bool,
-    pub is_backward_pressed: bool,
-    pub is_left_pressed: bool,
-    pub is_right_pressed: bool,
+    amount_left: f32,
+    amount_right: f32,
+    amount_forward: f32,
+    amount_backward: f32,
+    amount_up: f32,
+    amount_down: f32,
+    rotate_horizontal: f32,
+    rotate_vertical: f32,
+    scroll: f32,
+    speed: f32,
+    sensitivity: f32,
 }
 
 impl CameraController {
-    pub fn new(speed: f32) -> Self {
+    pub fn new(speed: f32,sensitivity: f32) -> Self {
         Self {
+            amount_left: 0.0,
+            amount_right: 0.0,
+            amount_forward: 0.0,
+            amount_backward: 0.0,
+            amount_up: 0.0,
+            amount_down: 0.0,
+            rotate_horizontal: 0.0,
+            rotate_vertical: 0.0,
+            scroll: 0.0,
             speed,
-            is_forward_pressed: false,
-            is_backward_pressed: false,
-            is_left_pressed: false,
-            is_right_pressed: false,
+            sensitivity,
         }
     }
 
-    pub fn process_events(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state,
-                        logical_key: key,
-                        ..
-                    },
-                ..
-            } => {
-                let is_pressed = *state == ElementState::Pressed;
-                match key.as_ref() {
-                    Key::Character("w") => {
-                        self.is_forward_pressed = is_pressed;
-                        true
-                    }
-                    Key::Character("a") => {
-                        self.is_left_pressed = is_pressed;
-                        true
-                    }
-                    Key::Character("s") => {
-                        self.is_backward_pressed = is_pressed;
-                        true
-                    }
-                    Key::Character("d") => {
-                        self.is_right_pressed = is_pressed;
-                        true
-                    }
-                    _ => false,
-                }
+    pub fn process_keyboard(&mut self, event: &KeyEvent) -> bool {
+        let amount = if event.state == ElementState::Pressed {
+            1.0
+        } else {
+            0.0
+        };
+        match event.logical_key.as_ref() {
+            Key::Character("w") => {
+                self.amount_forward = amount;
+                true
+            }
+            Key::Character("a") => {
+                self.amount_left = amount;
+                true
+            }
+            Key::Character("s") => {
+                self.amount_backward = amount;
+                true
+            }
+            Key::Character("d") => {
+                self.amount_right = amount;
+                true
+            }
+            Key::Named(NamedKey::Space) => {
+                self.amount_up = amount;
+                true
+            }
+            Key::Named(NamedKey::Shift) => {
+                self.amount_down = amount;
+                true
             }
             _ => false,
         }
+
+    }
+    
+
+    pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
+        self.rotate_horizontal = mouse_dx as f32;
+        self.rotate_vertical = mouse_dy as f32;
     }
 
-    pub fn update_camera(&self, camera: &mut Camera) {
-        use cgmath::InnerSpace;
-        let forward = camera.target - camera.eye;
-        let forward_norm = forward.normalize();
-        let forward_mag = forward.magnitude();
 
-        // Prevents glitching when the camera gets too close to the
-        // center of the scene.
-        if self.is_forward_pressed && forward_mag > self.speed {
-            camera.eye += forward_norm * self.speed;
-        }
-        if self.is_backward_pressed {
-            camera.eye -= forward_norm * self.speed;
-        }
+    pub fn update_camera(&mut self, camera: &mut Camera, dt: Duration) {
+        let dt = dt.as_secs_f32();
 
-        let right = forward_norm.cross(camera.up);
+        // Move forward/backward and left/right
+        let (yaw_sin, yaw_cos) = camera.yaw.0.sin_cos();
+        let forward = Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
+        let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
+        camera.eye += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
+        camera.eye += right * (self.amount_right - self.amount_left) * self.speed * dt;
 
-        // Redo radius calc in case the forward/backward is pressed.
-        let forward = camera.target - camera.eye;
-        let forward_mag = forward.magnitude();
+        // Move in/out (aka. "zoom")
+        // Note: this isn't an actual zoom. The camera's position
+        // changes when zooming. I've added this to make it easier
+        // to get closer to an object you want to focus on.
+        let (pitch_sin, pitch_cos) = camera.pitch.0.sin_cos();
+        let scrollward =
+            Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
+        camera.eye += scrollward * self.scroll * self.speed * self.sensitivity * dt;
+        self.scroll = 0.0;
 
-        if self.is_right_pressed {
-            // Rescale the distance between the target and the eye so
-            // that it doesn't change. The eye, therefore, still
-            // lies on the circle made by the target and eye.
-            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
-        }
-        if self.is_left_pressed {
-            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
+        // Move up/down. Since we don't use roll, we can just
+        // modify the y coordinate directly.
+        camera.eye.y += (self.amount_up - self.amount_down) * self.speed * dt;
+
+        // Rotate
+        camera.yaw += Rad(self.rotate_horizontal) * self.sensitivity * dt;
+        camera.pitch += Rad(-self.rotate_vertical) * self.sensitivity * dt;
+
+        // If process_mouse isn't called every frame, these values
+        // will not get set to zero, and the camera will rotate
+        // when moving in a non cardinal direction.
+        self.rotate_horizontal = 0.0;
+        self.rotate_vertical = 0.0;
+
+        // Keep the camera's angle from going too high/low.
+        if camera.pitch < -Rad(FRAC_PI_2) {
+            camera.pitch = -Rad(FRAC_PI_2);
+        } else if camera.pitch > Rad(FRAC_PI_2) {
+            camera.pitch = Rad(FRAC_PI_2);
         }
     }
 }
-
-// TODO: Switch to better camera
-// pub fn dolly_vec3_to_cgmath_vec3(dolly_vec: glam::Vec3) -> cgmath::Vector3<f32> {
-//     return cgmath::Vector3::new(dolly_vec.x, dolly_vec.y, dolly_vec.z);
-// }
-// pub fn dolly_point3_to_cgmath_point3(dolly_point: glam::Vec3) -> cgmath::Point3<f32> {
-//     return cgmath::Point3::new(dolly_point.x, dolly_point.y, dolly_point.z);
-// }
-// pub fn dolly_point3_to_cgmath_vec3(dolly_point: glam::Vec3) -> cgmath::Vector3<f32> {
-//     return cgmath::Vector3::new(dolly_point.x, dolly_point.y, dolly_point.z);
-// }
-
-// pub fn dolly_quaterion_to_cgmath_quaterion(dolly_quat: glam::Quat) -> cgmath::Quaternion<f32> {
-//     return cgmath::Quaternion::new(dolly_quat.w, dolly_quat.x, dolly_quat.y, dolly_quat.z);
-// }
-
-// pub fn generate_view_matrix_dolly() -> cgmath::Matrix4<f32>{
-//     let mut camera: CameraRig = CameraRig::builder()
-//     .with(Position::new(Vec3{ x: 1.5, y: -5.0, z: 3.0 }))
-//     .with(YawPitch::new().yaw_degrees(45.0).pitch_degrees(-30.0))
-//     .with(Smooth::new_position_rotation(1.0, 1.0))
-//     .build();
-//     let t = camera.update(1.0/60.0);
-//     // let transform = camera.final_transform;
-//     // let model: Matrix4<f32> = (cgmath::Matrix4::from_translation(dolly_point3_to_cgmath_vec3(t.position.into()))
-//     //     * cgmath::Matrix4::from(dolly_quaterion_to_cgmath_quaterion(t.rotation.into()))).into();
-//     // let (sin_pitch, cos_yaw) = camera.final_transform.rotation.
-//     // return OPENGL_TO_WGPU_MATRIX*model
-//     let yaw =camera.driver::<YawPitch>().yaw_degrees;
-//     let pitch = camera.driver::<YawPitch>().pitch_degrees;
-//     // convert pitch and yaw to radians
-//     let (sin_pitch, cos_pitch) = pitch.to_radians().sin_cos();
-//     let (sin_yaw, cos_yaw) = yaw.to_radians().sin_cos();
-
-// }

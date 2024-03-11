@@ -4,9 +4,9 @@ mod vertex;
 
 use std::sync::Arc;
 
-use camera::{generate_view_matrix, Camera, CameraController, CameraUniform};
+use camera::{ Camera, CameraController, CameraUniform};
 use cgmath::prelude::*;
-use instance::{Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES_PER_ROW};
+use instance::{Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES, NUM_INSTANCES_PER_ROW};
 use vertex::{Vertex, INDEX, VERTICES};
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, event_loop};
@@ -23,9 +23,10 @@ struct State {
     camera_uniform_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
-    view_matrix: CameraUniform,
+    camera_uniform: CameraUniform,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
+    mouse_pressed: bool
 }
 
 impl State {
@@ -115,21 +116,21 @@ impl State {
         });
 
         let camera = Camera {
-            eye: (1.5f32, -5.0, 3.0).into(),
-            target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
+            eye: (0.0, 5.0, 10.0).into(),
+            yaw: cgmath::Deg(-90.0).into(),
+            pitch: cgmath::Deg(-20.0).into(),
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
             zfar: 100.0,
         };
-        let mut view_matrix = CameraUniform::new();
-        view_matrix.update_view_proj(&camera);
-        let camera_controller = CameraController::new(0.002);
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+        let camera_controller = CameraController::new(4.0,0.4);
 
         let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[view_matrix]),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -210,9 +211,10 @@ impl State {
             camera_uniform_buffer,
             camera_bind_group,
             camera_controller,
-            view_matrix,
+            camera_uniform,
             instances,
             instance_buffer,
+            mouse_pressed: false
         })
     }
 
@@ -253,16 +255,28 @@ impl State {
     }
 
     fn handle_input(&mut self, event: &WindowEvent) -> bool {
-        return self.camera_controller.process_events(event);
+        match event {
+            WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
+                self.camera_controller.process_keyboard(event);
+                true
+            }
+            WindowEvent::MouseInput { device_id: _, state: st, button } =>{
+                if *button == winit::event::MouseButton::Left && *st == winit::event::ElementState::Pressed {
+                   self.mouse_pressed = true;
+                }
+                true
+            }
+           _  => false
+        }
     }
 
-    fn update(&mut self) {
-        self.camera_controller.update_camera(&mut self.camera);
-        self.view_matrix.update_view_proj(&self.camera);
+    fn update(&mut self,dt: instant::Duration) {
+        self.camera_controller.update_camera(&mut self.camera,dt);
+        self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_uniform_buffer,
             0,
-            bytemuck::cast_slice(&[self.view_matrix]),
+            bytemuck::cast_slice(&[self.camera_uniform]),
         );
     }
 }
@@ -275,26 +289,37 @@ async fn run() {
             .unwrap(),
     );
     let mut state = State::new(window.clone()).await.unwrap();
+    let mut last_render_time = instant::Instant::now();  // NEW!
     state.render();
     event_loop.set_control_flow(event_loop::ControlFlow::Poll);
 
     let _ = event_loop.run(move |event, window_target| match event {
-        winit::event::Event::WindowEvent { event, window_id } => {
-            if !state.handle_input(&event) {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        window_target.exit();
+        winit::event::Event::DeviceEvent { device_id: _, event } => {
+            match event {
+                winit::event::DeviceEvent::MouseMotion {delta } => {
+                    if state.mouse_pressed {
+                    state.camera_controller.process_mouse(delta.0, delta.1);
                     }
-                    WindowEvent::RedrawRequested => {
-                        state.update();
-                        state.render();
-                        window.request_redraw();
-                    }
-                    _ => {}
                 }
+                _ => {}
             }
         }
-
+        winit::event::Event::WindowEvent { ref event, window_id: _ } if !state.handle_input(event) => {
+            match event {
+                WindowEvent::CloseRequested => {
+                    window_target.exit();
+                }
+                WindowEvent::RedrawRequested => {
+                    let now = instant::Instant::now();
+                    let dt: instant::Duration = now - last_render_time;
+                    last_render_time = now;
+                    state.update(dt);
+                    state.render();
+                    window.request_redraw();
+                }
+                _ => {}
+            }
+        }
         _ => (),
     });
 }
