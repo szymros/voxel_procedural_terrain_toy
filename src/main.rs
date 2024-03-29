@@ -1,13 +1,17 @@
 mod camera;
+mod chunk;
 mod instance;
-mod vertex;
 mod texture;
+mod vertex;
 
 use std::sync::Arc;
 
-use camera::{ Camera, CameraController, CameraUniform};
+use camera::{Camera, CameraController, CameraUniform};
 use cgmath::prelude::*;
-use instance::{Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES, NUM_INSTANCES_PER_ROW};
+use chunk::Chunk;
+use instance::{
+    Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES, NUM_INSTANCES_PER_ROW,
+};
 use vertex::{Vertex, INDEX, VERTICES};
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, event_loop};
@@ -28,7 +32,7 @@ struct State {
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     mouse_pressed: bool,
-    depth_texture: texture::Texture
+    depth_texture: texture::Texture,
 }
 
 impl State {
@@ -91,7 +95,7 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let mut a:u32 = 2;
+        let mut a: u32 = 2;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
@@ -109,6 +113,14 @@ impl State {
                     Instance { position, rotation }
                 })
             })
+            .collect::<Vec<_>>();
+
+        let chunk = Chunk::new(16, [0.0, 0.0, 0.0]);
+        let chunk1 = Chunk::new(16, [0.0, 1.0, 0.0]);
+        let chunks = vec![chunk, chunk1];
+        let instances = chunks
+            .iter()
+            .flat_map(|chunk| chunk.build_mesh())
             .collect::<Vec<_>>();
 
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
@@ -129,7 +141,7 @@ impl State {
         };
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
-        let camera_controller = CameraController::new(4.0,0.4);
+        let camera_controller = CameraController::new(4.0, 0.4);
 
         let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
@@ -161,7 +173,8 @@ impl State {
             }],
         });
 
-        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Main pipeline layout"),
@@ -190,7 +203,7 @@ impl State {
                 format: texture::Texture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less, // 1.
-                stencil: wgpu::StencilState::default(), // 2.
+                stencil: wgpu::StencilState::default(),     // 2.
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
@@ -226,7 +239,7 @@ impl State {
             instances,
             instance_buffer,
             mouse_pressed: false,
-            depth_texture
+            depth_texture,
         })
     }
 
@@ -267,7 +280,7 @@ impl State {
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw_indexed(0..INDEX.len() as u32, 0, 0..NUM_INSTANCES as _);
+            render_pass.draw_indexed(0..INDEX.len() as u32, 0, 0..self.instances.len() as _);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -275,22 +288,32 @@ impl State {
 
     fn handle_input(&mut self, event: &WindowEvent) -> bool {
         match event {
-            WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
+            WindowEvent::KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => {
                 self.camera_controller.process_keyboard(event);
                 true
             }
-            WindowEvent::MouseInput { device_id: _, state: st, button } =>{
-                if *button == winit::event::MouseButton::Left && *st == winit::event::ElementState::Pressed {
-                   self.mouse_pressed = true;
+            WindowEvent::MouseInput {
+                device_id: _,
+                state: st,
+                button,
+            } => {
+                if *button == winit::event::MouseButton::Left
+                    && *st == winit::event::ElementState::Pressed
+                {
+                    self.mouse_pressed = true;
                 }
                 true
             }
-           _  => false
+            _ => false,
         }
     }
 
-    fn update(&mut self,dt: instant::Duration) {
-        self.camera_controller.update_camera(&mut self.camera,dt);
+    fn update(&mut self, dt: instant::Duration) {
+        self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_uniform_buffer,
@@ -308,37 +331,39 @@ async fn run() {
             .unwrap(),
     );
     let mut state = State::new(window.clone()).await.unwrap();
-    let mut last_render_time = instant::Instant::now();  // NEW!
+    let mut last_render_time = instant::Instant::now(); // NEW!
     state.render();
     event_loop.set_control_flow(event_loop::ControlFlow::Poll);
 
     let _ = event_loop.run(move |event, window_target| match event {
-        winit::event::Event::DeviceEvent { device_id: _, event } => {
-            match event {
-                winit::event::DeviceEvent::MouseMotion {delta } => {
-                    if state.mouse_pressed {
+        winit::event::Event::DeviceEvent {
+            device_id: _,
+            event,
+        } => match event {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                if state.mouse_pressed {
                     state.camera_controller.process_mouse(delta.0, delta.1);
-                    }
                 }
-                _ => {}
             }
-        }
-        winit::event::Event::WindowEvent { ref event, window_id: _ } if !state.handle_input(event) => {
-            match event {
-                WindowEvent::CloseRequested => {
-                    window_target.exit();
-                }
-                WindowEvent::RedrawRequested => {
-                    let now = instant::Instant::now();
-                    let dt: instant::Duration = now - last_render_time;
-                    last_render_time = now;
-                    state.update(dt);
-                    state.render();
-                    window.request_redraw();
-                }
-                _ => {}
+            _ => {}
+        },
+        winit::event::Event::WindowEvent {
+            ref event,
+            window_id: _,
+        } if !state.handle_input(event) => match event {
+            WindowEvent::CloseRequested => {
+                window_target.exit();
             }
-        }
+            WindowEvent::RedrawRequested => {
+                let now = instant::Instant::now();
+                let dt: instant::Duration = now - last_render_time;
+                last_render_time = now;
+                state.update(dt);
+                state.render();
+                window.request_redraw();
+            }
+            _ => {}
+        },
         _ => (),
     });
 }

@@ -11,7 +11,9 @@ cgmath = "0.18.0"
 dolly = "0.5.0"
 env_logger = "0.11.2"
 glam = "0.25.0"
+image = "0.25.0"
 instant = "0.1.12"
+noise = { version = "0.9.0", features = ["images"] }
 pollster = "0.3.0"
 wgpu = "0.19.1"
 winit = {version = "0.29.10", features = ["rwh_05"]}

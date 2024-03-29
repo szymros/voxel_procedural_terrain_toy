@@ -2,10 +2,7 @@ use std::{f32::consts::FRAC_PI_2, time::Duration};
 
 use cgmath::{InnerSpace, Point3, Rad, Vector3};
 use winit::{
-    event::{
-        ElementState, KeyEvent,
-        WindowEvent,
-    },
+    event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{Key, NamedKey},
 };
 
@@ -41,7 +38,6 @@ impl CameraUniform {
 }
 
 pub struct Camera {
-
     // view
     pub eye: cgmath::Point3<f32>,
     pub yaw: Rad<f32>,
@@ -58,11 +54,9 @@ impl Camera {
     pub fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
         let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
         let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
-        let vec = Vector3::new( cos_pitch*cos_yaw,sin_pitch,cos_pitch*sin_yaw).normalize();
+        let vec = Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize();
         // 1.
-        let view = cgmath::Matrix4::look_at_dir(self.eye, 
-            vec,
-             Vector3::unit_y());
+        let view = cgmath::Matrix4::look_at_dir(self.eye, vec, Vector3::unit_y());
         // 2.
         let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
 
@@ -86,7 +80,7 @@ pub struct CameraController {
 }
 
 impl CameraController {
-    pub fn new(speed: f32,sensitivity: f32) -> Self {
+    pub fn new(speed: f32, sensitivity: f32) -> Self {
         Self {
             amount_left: 0.0,
             amount_right: 0.0,
@@ -135,15 +129,12 @@ impl CameraController {
             }
             _ => false,
         }
-
     }
-    
 
     pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
         self.rotate_horizontal = mouse_dx as f32;
         self.rotate_vertical = mouse_dy as f32;
     }
-
 
     pub fn update_camera(&mut self, camera: &mut Camera, dt: Duration) {
         let dt = dt.as_secs_f32();
