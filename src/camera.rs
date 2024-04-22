@@ -1,8 +1,8 @@
 use std::{f32::consts::FRAC_PI_2, time::Duration};
 
-use cgmath::{InnerSpace, Point3, Rad, Vector3};
+use cgmath::{InnerSpace, Rad, Vector3};
 use winit::{
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::{ElementState, KeyEvent},
     keyboard::{Key, NamedKey},
 };
 

@@ -1,8 +1,10 @@
 mod camera;
-mod chunk;
 mod instance;
 mod texture;
 mod vertex;
+mod chunk;
+mod quad;
+mod voxel;
 
 use std::sync::Arc;
 
@@ -10,9 +12,9 @@ use camera::{Camera, CameraController, CameraUniform};
 use cgmath::prelude::*;
 use chunk::Chunk;
 use instance::{
-    Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES, NUM_INSTANCES_PER_ROW,
+    Instance, InstanceRaw, INSTANCE_DISPLACEMENT,NUM_INSTANCES_PER_ROW,
 };
-use vertex::{Vertex, INDEX, VERTICES};
+use vertex::Vertex;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, event_loop};
 
@@ -23,7 +25,6 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    num_indices: u32,
     camera: Camera,
     camera_uniform_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -33,6 +34,7 @@ struct State {
     instance_buffer: wgpu::Buffer,
     mouse_pressed: bool,
     depth_texture: texture::Texture,
+    len_indices: usize,
 }
 
 impl State {
@@ -83,44 +85,28 @@ impl State {
 
         let shader_module = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        let vertex_chunk = Chunk::new(16, [0.0, 0.0, 0.0]);
+        let (vertices, indices) = vertex_chunk.build_mesh_vertex();
+        let len_indices = indices.len();
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&VERTICES),
+            contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&INDEX),
+            contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-
-        let mut a: u32 = 2;
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = cgmath::Vector3 {
-                        x: (x * a) as f32,
-                        y: 0.0,
-                        z: (z * a) as f32,
-                    } - INSTANCE_DISPLACEMENT;
-
-                    let rotation = cgmath::Quaternion::from_axis_angle(
-                        cgmath::Vector3::unit_z(),
-                        cgmath::Deg(0.0),
-                    );
-
-                    Instance { position, rotation }
-                })
-            })
-            .collect::<Vec<_>>();
 
         let chunk = Chunk::new(16, [0.0, 0.0, 0.0]);
         let chunk1 = Chunk::new(16, [0.0, 1.0, 0.0]);
         let chunks = vec![chunk, chunk1];
         let instances = chunks
             .iter()
-            .flat_map(|chunk| chunk.build_mesh())
+            .flat_map(|chunk| chunk.build_mesh_random())
             .collect::<Vec<_>>();
 
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
@@ -230,7 +216,6 @@ impl State {
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            num_indices: INDEX.len() as u32,
             camera,
             camera_uniform_buffer,
             camera_bind_group,
@@ -240,6 +225,7 @@ impl State {
             instance_buffer,
             mouse_pressed: false,
             depth_texture,
+            len_indices,
         })
     }
 
@@ -277,10 +263,10 @@ impl State {
             });
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw_indexed(0..INDEX.len() as u32, 0, 0..self.instances.len() as _);
+            render_pass.draw_indexed(0..self.len_indices as u32, 0, 0..1 as _);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

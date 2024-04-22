@@ -9,11 +9,12 @@ edition = "2021"
 bytemuck = { version = "1.14.3", features = ["derive"] }
 cgmath = "0.18.0"
 dolly = "0.5.0"
+enum-iterator = "2.0.0"
 env_logger = "0.11.2"
 glam = "0.25.0"
-image = "0.25.0"
 instant = "0.1.12"
-noise = { version = "0.9.0", features = ["images"] }
+noise = "0.9.0"
 pollster = "0.3.0"
+rand = "0.8.5"
 wgpu = "0.19.1"
 winit = {version = "0.29.10", features = ["rwh_05"]}
