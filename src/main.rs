@@ -1,9 +1,10 @@
 mod camera;
+mod chunk;
 mod instance;
+mod quad;
+mod region;
 mod texture;
 mod vertex;
-mod chunk;
-mod quad;
 mod voxel;
 
 use std::sync::Arc;
@@ -11,9 +12,8 @@ use std::sync::Arc;
 use camera::{Camera, CameraController, CameraUniform};
 use cgmath::prelude::*;
 use chunk::Chunk;
-use instance::{
-    Instance, InstanceRaw, INSTANCE_DISPLACEMENT,NUM_INSTANCES_PER_ROW,
-};
+use instance::{Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES_PER_ROW};
+use region::Region;
 use vertex::Vertex;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, event_loop};
@@ -85,8 +85,41 @@ impl State {
 
         let shader_module = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let vertex_chunk = Chunk::new(16, [0.0, 0.0, 0.0]);
-        let (vertices, indices) = vertex_chunk.build_mesh_vertex();
+        // let mut chunks_: Vec<Chunk> = Vec::new();
+        // for x in 0..3{
+        //     for y in 0..3{
+        //         chunks_.push(Chunk::new([x as f32, y as f32, 0.0]));
+        //     }
+        // }
+        // let mut vertices: Vec<Vertex> = Vec::new();
+        // let mut indices: Vec<u32> = Vec::new();
+        // let chunk_1 = Chunk::new([0.0, 0.0, 0.0]);
+        // let (mut chunk_vertices,mut chunk_indecies) = chunk_1.build_mesh();
+        // vertices.append(&mut chunk_vertices);
+        // indices.append(&mut chunk_indecies);
+        // let chunk_2 = Chunk::new([1.0, 1.0, 1.0]);
+        // let (mut chunk_vertices2,mut chunk_indecies2) = chunk_2.build_mesh();
+        // vertices.append(&mut chunk_vertices2);
+        // indices.append(&mut chunk_indecies2);
+
+        // for chunk in chunks_.iter(){
+        //     let (mut chunk_vertices,mut chunk_indecies) = chunk.build_mesh();
+        //     vertices.append(&mut chunk_vertices);
+        //     indices.append(&mut chunk_indecies);
+        // }
+
+        let vertex_chunk = Chunk::new_random([0.0, -1.0, 0.0]);
+        let (mut vertices1, mut indices1s) = vertex_chunk.build_mesh(0);
+        // let chunk2 = Chunk::new_random([0.0, 0.0, 0.0]);
+        // let (mut chunk_2_vert, mut chunk_2_ind) = chunk2.build_mesh(*indices1s.last().unwrap() as u32 + 4);
+        // let vertices = [vertices1, chunk_2_vert].concat();
+        // let indices = [indices1s, chunk_2_ind].concat();
+        let mut vertices: Vec<Vertex> = Vec::new();
+        vertices.append(&mut vertices1);
+        // vertices.append(&mut chunk_2_vert);
+        let mut indices: Vec<u32> = Vec::new();
+        indices.append(&mut indices1s);
+        // indices.append(&mut chunk_2_ind);
         let len_indices = indices.len();
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -101,10 +134,9 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let chunk = Chunk::new(16, [0.0, 0.0, 0.0]);
-        let chunk1 = Chunk::new(16, [0.0, 1.0, 0.0]);
-        let chunks = vec![chunk, chunk1];
-        let instances = chunks
+        let chuj = Chunk::new([0.0, 0.0, 0.0]);
+        let dupa = vec![chuj];
+        let instances = dupa
             .iter()
             .flat_map(|chunk| chunk.build_mesh_random())
             .collect::<Vec<_>>();
@@ -246,7 +278,12 @@ impl State {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
