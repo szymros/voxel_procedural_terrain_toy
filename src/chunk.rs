@@ -4,7 +4,10 @@ use crate::{instance::Instance, quad::Quad, quad::Side};
 
 use cgmath::prelude::*;
 use enum_iterator::all;
-use noise::{core::perlin::perlin_2d, permutationtable::PermutationTable};
+use noise::core::perlin;
+use noise::utils::NoiseMapBuilder;
+use noise::MultiFractal;
+use noise::{core::perlin::perlin_2d, permutationtable::PermutationTable, utils::PlaneMapBuilder, Perlin, Fbm};
 use rand::Rng;
 
 pub const SIZE: usize = 64;
@@ -37,20 +40,13 @@ impl Chunk {
     }
 
     pub fn new_random(world_position: [f32; 3]) -> Self {
-        let perm_table = PermutationTable::new(1);
-        let mut height_map: [[f32; SIZE]; SIZE] = [[0.0; SIZE]; SIZE];
-        for x in 0..SIZE {
-            for y in 0..SIZE {
-                height_map[x][y] = (perlin_2d([x as f64 * 0.1, y as f64 * 0.1].into(), &perm_table)
-                    as f32)
-                    * SIZE as f32;
-            }
-        }
+        let fbm = Fbm::<Perlin>::new(1).set_frequency(2.0).set_octaves(6).set_lacunarity(2.0).set_persistence(0.5);
+        let height_map = PlaneMapBuilder::new(fbm).set_size(SIZE, SIZE).set_x_bounds(0.0,1.0).set_y_bounds(0.0, 1.0).build();  
         let mut blocks = [[[Voxel::new(true); SIZE]; SIZE]; SIZE];
         for x in 0..SIZE {
-            for y in 0..SIZE {
-                for z in 0..SIZE {
-                    if (y as f32) < height_map[x][z] {
+            for z in 0..SIZE {
+                for y in 0..SIZE {
+                    if (y as f64) < height_map.get_value(x, z) * SIZE as f64{
                         blocks[x][y][z] = Voxel::new(true);
                     } else {
                         blocks[x][y][z] = Voxel::new(false);
