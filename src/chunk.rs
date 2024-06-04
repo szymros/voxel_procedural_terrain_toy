@@ -7,7 +7,10 @@ use enum_iterator::all;
 use noise::core::perlin;
 use noise::utils::NoiseMapBuilder;
 use noise::MultiFractal;
-use noise::{core::perlin::perlin_2d, permutationtable::PermutationTable, utils::PlaneMapBuilder, Perlin, Fbm};
+use noise::{
+    core::perlin::perlin_2d, permutationtable::PermutationTable, utils::PlaneMapBuilder, Fbm,
+    Perlin,
+};
 use rand::Rng;
 
 pub const SIZE: usize = 64;
@@ -40,13 +43,21 @@ impl Chunk {
     }
 
     pub fn new_random(world_position: [f32; 3]) -> Self {
-        let fbm = Fbm::<Perlin>::new(1).set_frequency(2.0).set_octaves(6).set_lacunarity(2.0).set_persistence(0.5);
-        let height_map = PlaneMapBuilder::new(fbm).set_size(SIZE, SIZE).set_x_bounds(0.0,1.0).set_y_bounds(0.0, 1.0).build();  
+        let fbm = Fbm::<Perlin>::new(1)
+            .set_frequency(2.0)
+            .set_octaves(6)
+            .set_lacunarity(2.0)
+            .set_persistence(0.5);
+        let height_map = PlaneMapBuilder::new(fbm)
+            .set_size(SIZE, SIZE)
+            .set_x_bounds(0.0, 1.0)
+            .set_y_bounds(0.0, 1.0)
+            .build();
         let mut blocks = [[[Voxel::new(true); SIZE]; SIZE]; SIZE];
         for x in 0..SIZE {
             for z in 0..SIZE {
                 for y in 0..SIZE {
-                    if (y as f64) < height_map.get_value(x, z) * SIZE as f64{
+                    if (y as f64) < height_map.get_value(x, z) * SIZE as f64 {
                         blocks[x][y][z] = Voxel::new(true);
                     } else {
                         blocks[x][y][z] = Voxel::new(false);
@@ -115,7 +126,7 @@ impl Chunk {
                             (self.world_position[0] * SIZE as f32) + local_pos[0] as f32,
                             (self.world_position[1] * SIZE as f32) + local_pos[1] as f32,
                             (self.world_position[2] * SIZE as f32) + local_pos[2] as f32,
-                        ]; 
+                        ];
                         for side in all::<Side>() {
                             let quad = Quad::new(&side, world_pos[0], world_pos[1], world_pos[2]);
                             let (axis, direction) = Quad::get_axis_and_direction_for_side(&side);

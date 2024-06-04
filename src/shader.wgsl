@@ -24,16 +24,10 @@ struct InstanceInput {
 
 @vertex
 fn vs_main(
-     vertex: VertexInput,instance: InstanceInput
+     vertex: VertexInput
 ) -> VertexOutput {
-    let model_matrix = mat4x4<f32>(
-        instance.model_matrix_0,
-        instance.model_matrix_1,
-        instance.model_matrix_2,
-        instance.model_matrix_3,
-    );
     var out: VertexOutput;
-    out.clip_position = view_matrix * model_matrix * vertex.position;
+    out.clip_position = view_matrix * vertex.position;
     out.color = vertex.color;
     return out;
 }
