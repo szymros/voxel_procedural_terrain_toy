@@ -4,13 +4,9 @@ use crate::{instance::Instance, quad::Quad, quad::Side};
 
 use cgmath::prelude::*;
 use enum_iterator::all;
-use noise::core::perlin;
 use noise::utils::NoiseMapBuilder;
 use noise::MultiFractal;
-use noise::{
-    core::perlin::perlin_2d, permutationtable::PermutationTable, utils::PlaneMapBuilder, Fbm,
-    Perlin,
-};
+use noise::{utils::PlaneMapBuilder, Fbm, Perlin};
 use rand::Rng;
 
 pub const SIZE: usize = 64;

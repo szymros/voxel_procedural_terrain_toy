@@ -8,14 +8,9 @@ mod state;
 mod texture;
 mod vertex;
 mod voxel;
-use cgmath::prelude::*;
 use chunk::Chunk;
-use egui_wgpu::ScreenDescriptor;
 use state::State;
-use vertex::Vertex;
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
-use winit::keyboard::{Key, ModifiersState, NamedKey};
 use winit::{event::WindowEvent, event_loop};
 
 async fn run() {
@@ -29,7 +24,7 @@ async fn run() {
     let mut last_render_time = instant::Instant::now(); // NEW!
 
     let vertex_chunk = Chunk::new_random([0.0, -1.0, 0.0]);
-    let (mut vertices, mut indices) = vertex_chunk.build_mesh(0);
+    let (vertices, indices) = vertex_chunk.build_mesh(0);
     state.set_buffers(vertices, indices);
     state.render();
     event_loop.set_control_flow(event_loop::ControlFlow::Poll);

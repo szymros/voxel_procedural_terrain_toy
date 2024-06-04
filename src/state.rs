@@ -1,16 +1,10 @@
 use crate::camera::{Camera, CameraController, CameraUniform};
-use crate::chunk::Chunk;
-use crate::gui::GuiRenderer;
-use crate::instance::{Instance, InstanceRaw, INSTANCE_DISPLACEMENT, NUM_INSTANCES_PER_ROW};
-use crate::region::Region;
 use crate::texture;
 use crate::vertex::Vertex;
 use cgmath::prelude::*;
-use egui_wgpu::ScreenDescriptor;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-use winit::keyboard::{Key, ModifiersState, NamedKey};
-use winit::{event::WindowEvent, event_loop};
+use winit::event::WindowEvent;
 
 pub struct State {
     pub surface: wgpu::Surface<'static>,

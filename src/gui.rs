@@ -82,7 +82,7 @@ impl GuiRenderer {
     ) -> GuiRenderer {
         let egui_context = Context::default();
 
-        let mut egui_state = egui_winit::State::new(
+        let egui_state = egui_winit::State::new(
             egui_context,
             egui::viewport::ViewportId::ROOT,
             &window,
