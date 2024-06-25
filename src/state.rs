@@ -1,10 +1,16 @@
 use crate::camera::{Camera, CameraController, CameraUniform};
+use crate::gui::GuiRenderer;
 use crate::texture;
 use crate::vertex::Vertex;
+use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use cgmath::prelude::*;
+use dolly::rig::CameraRig;
+use egui_wgpu::ScreenDescriptor;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
+use winit::window::Window;
+use dolly::prelude::*;
 
 pub struct State {
     pub surface: wgpu::Surface<'static>,
@@ -21,7 +27,6 @@ pub struct State {
     pub depth_texture: texture::Texture,
     pub len_indices: usize,
     pub surface_format: wgpu::TextureFormat,
-    pub mouse_pressed: bool,
 }
 
 impl State {
@@ -83,7 +88,12 @@ impl State {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-
+        let mut dolly_cam:CameraRig = CameraRig::builder()
+        .with(YawPitch::new().yaw_degrees(45.0).pitch_degrees(-30.0))
+        .with(Smooth::new_rotation(1.5))
+        .with(Arm::new(glam::Vec3::Z * 8.0))
+        .build();
+        let camera_xform = dolly_cam.update(1.0/60.0);
         let camera = Camera {
             eye: (0.0, 5.0, 10.0).into(),
             yaw: cgmath::Deg(-90.0).into(),
@@ -192,7 +202,6 @@ impl State {
             depth_texture,
             len_indices: 0,
             surface_format,
-            mouse_pressed: false,
         })
     }
 
@@ -218,7 +227,7 @@ impl State {
         self.len_indices = indicies.len();
     }
 
-    pub fn render(&self) {
+    pub fn render(&self, gui_renderer: &mut GuiRenderer, window: &Window) {
         let output = self.surface.get_current_texture().unwrap();
         let view = output
             .texture
@@ -228,6 +237,10 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [WINDOW_WIDTH, WINDOW_HEIGHT],
+            pixels_per_point: window.scale_factor() as f32 * 1.0,
+        };
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -261,6 +274,14 @@ impl State {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw_indexed(0..self.len_indices as u32, 0, 0..1 as _);
         }
+        gui_renderer.draw(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            window,
+            &view,
+            screen_descriptor,
+        );
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
     }
@@ -275,18 +296,14 @@ impl State {
                 self.camera_controller.process_keyboard(event);
                 true
             }
-            WindowEvent::MouseInput {
-                device_id: _,
-                state: st,
-                button,
-            } => {
-                if *button == winit::event::MouseButton::Left
-                    && *st == winit::event::ElementState::Pressed
-                {
-                    self.mouse_pressed = true;
-                }
-                true
-            }
+            //     WindowEvent::MouseInput {
+            //         device_id: _,
+            //         state: st,
+            //         button,
+            //     } => {
+            //         if *button == winit::event::MouseButton::Left
+            //             && *st == winit::event::ElementState::Pressed
+            //         true
             _ => false,
         }
     }

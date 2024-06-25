@@ -4,68 +4,14 @@ use egui_winit::State;
 use wgpu::{CommandEncoder, Device, Queue, StoreOp, TextureFormat, TextureView};
 use winit::event::WindowEvent;
 use winit::window::Window;
-
-// let surface_texture = state.surface
-// .get_current_texture()
-// .expect("Failed to acquire next swap chain texture");
-//
-// let surface_view = surface_texture
-// .texture
-// .create_view(&wgpu::TextureViewDescriptor::default());
-//
-// let mut encoder =
-// state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-// label: None,
-// });
-//
-// let screen_descriptor = ScreenDescriptor {
-// size_in_pixels: [800, 600],
-// pixels_per_point: window.scale_factor() as f32 * scale_factor,
-// };
-
-// egui_renderer.draw(
-// &state.device,
-// &state.queue,
-// &mut encoder,
-// &window,
-// &surface_view,
-// screen_descriptor,
-// |ctx| {
-// egui::Window::new("winit + egui + wgpu says hello!")
-// .resizable(true)
-// .vscroll(true)
-// .default_open(false)
-// .show(&ctx, |ui| {
-// ui.label("Label!");
-//
-// if ui.button("Button!").clicked() {
-// println!("boom!")
-// }
-//
-// ui.separator();
-// ui.horizontal(|ui| {
-// ui.label(format!(
-// "Pixels per point: {}",
-// ctx.pixels_per_point()
-// ));
-// if ui.button("-").clicked() {
-// scale_factor = (scale_factor - 0.1).max(0.3);
-// }
-// if ui.button("+").clicked() {
-// scale_factor = (scale_factor + 0.1).min(3.0);
-// }
-// });
-// });
-// },
-// );
-//
-// state.queue.submit(Some(encoder.finish()));
-// surface_texture.present();
+// use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 //
 
 pub struct GuiRenderer {
     state: State,
     renderer: Renderer,
+    pub slider:f32,
+    pub updated:bool,
 }
 
 impl GuiRenderer {
@@ -99,11 +45,13 @@ impl GuiRenderer {
         GuiRenderer {
             state: egui_state,
             renderer: egui_renderer,
+            slider: 1.0,
+            updated:false,
         }
     }
 
     pub fn handle_input(&mut self, window: &Window, event: &WindowEvent) {
-        self.state.on_window_event(window, &event);
+            self.state.on_window_event(window, &event);
     }
 
     pub fn ppp(&mut self, v: f32) {
@@ -118,15 +66,29 @@ impl GuiRenderer {
         window: &Window,
         window_surface_view: &TextureView,
         screen_descriptor: ScreenDescriptor,
-        run_ui: impl FnOnce(&Context),
     ) {
         self.state
             .egui_ctx()
             .set_pixels_per_point(screen_descriptor.pixels_per_point);
-
+        // let asd =&self.state.egui_ctx().
         let raw_input = self.state.take_egui_input(&window);
-        let full_output = self.state.egui_ctx().run(raw_input, |ui| {
-            run_ui(&self.state.egui_ctx());
+        let full_output = self.state.egui_ctx().run(raw_input, |ctx| {
+            egui::Window::new("winit + egui + wgpu says hello!")
+                .resizable(true)
+                .vscroll(true)
+                .default_open(false)
+                .show(&ctx, |mut ui| {
+                    ui.label("Label!");
+
+                    if ui.button("Button!").clicked() {
+                        println!("boom!")
+                    }
+                    ui.separator();
+                    let resp = ui.add(egui::Slider::new(&mut self.slider, 0.0..=1.0).text("Slider!"));
+                    if resp.changed() {
+                        self.updated = true;
+                    }
+                });
         });
 
         self.state
