@@ -28,6 +28,9 @@ impl Chunk {
                         continue;
                     } else {
                         blocks[x][y][z] = Voxel::new(true);
+                        if y == 1 {
+                            blocks[x][y][z] = Voxel::new(true);
+                        }
                     }
                 }
             }
@@ -57,6 +60,9 @@ impl Chunk {
                         blocks[x][y][z] = Voxel::new(true);
                     } else {
                         blocks[x][y][z] = Voxel::new(false);
+                        if y == 1 {
+                            blocks[x][y][z] = Voxel::new(true);
+                        }
                     }
                 }
             }

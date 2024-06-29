@@ -1,16 +1,13 @@
-use crate::camera::{Camera, CameraController, CameraUniform};
+use crate::camera::{ CameraUniform, DollyCamera};
 use crate::gui::GuiRenderer;
 use crate::texture;
 use crate::vertex::Vertex;
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
-use cgmath::prelude::*;
-use dolly::rig::CameraRig;
 use egui_wgpu::ScreenDescriptor;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::event::WindowEvent;
 use winit::window::Window;
-use dolly::prelude::*;
 
 pub struct State {
     pub surface: wgpu::Surface<'static>,
@@ -19,14 +16,13 @@ pub struct State {
     pub render_pipeline: wgpu::RenderPipeline,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
-    pub camera: Camera,
     pub camera_uniform_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
-    pub camera_controller: CameraController,
     pub camera_uniform: CameraUniform,
     pub depth_texture: texture::Texture,
     pub len_indices: usize,
     pub surface_format: wgpu::TextureFormat,
+    pub dolly_cam: DollyCamera,
 }
 
 impl State {
@@ -88,24 +84,14 @@ impl State {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let mut dolly_cam:CameraRig = CameraRig::builder()
-        .with(YawPitch::new().yaw_degrees(45.0).pitch_degrees(-30.0))
-        .with(Smooth::new_rotation(1.5))
-        .with(Arm::new(glam::Vec3::Z * 8.0))
-        .build();
-        let camera_xform = dolly_cam.update(1.0/60.0);
-        let camera = Camera {
-            eye: (0.0, 5.0, 10.0).into(),
-            yaw: cgmath::Deg(-90.0).into(),
-            pitch: cgmath::Deg(-20.0).into(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
+        let mut dolly_cam = DollyCamera::new(
+            (0.0, 0.0, 0.0).into(),
+            config.width as f32 / config.height as f32,
+            45.0,
+            0.1,
+            100.0,);
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-        let camera_controller = CameraController::new(4.0, 0.4);
+        camera_uniform.update_view_proj(&mut dolly_cam);
 
         let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
@@ -194,14 +180,13 @@ impl State {
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            camera,
             camera_uniform_buffer,
             camera_bind_group,
-            camera_controller,
             camera_uniform,
             depth_texture,
             len_indices: 0,
             surface_format,
+            dolly_cam
         })
     }
 
@@ -293,24 +278,15 @@ impl State {
                 event,
                 is_synthetic,
             } => {
-                self.camera_controller.process_keyboard(event);
+                self.dolly_cam.process_cam_input(event);
                 true
             }
-            //     WindowEvent::MouseInput {
-            //         device_id: _,
-            //         state: st,
-            //         button,
-            //     } => {
-            //         if *button == winit::event::MouseButton::Left
-            //             && *st == winit::event::ElementState::Pressed
-            //         true
             _ => false,
         }
     }
 
     pub fn update(&mut self, dt: instant::Duration) {
-        self.camera_controller.update_camera(&mut self.camera, dt);
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera_uniform.update_view_proj(&mut self.dolly_cam);
         self.queue.write_buffer(
             &self.camera_uniform_buffer,
             0,
