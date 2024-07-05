@@ -1,5 +1,6 @@
 mod camera;
 mod chunk;
+mod generation_params;
 mod gui;
 mod instance;
 mod quad;
@@ -26,9 +27,10 @@ async fn run() {
     let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
     let mut state = State::new(window.clone()).await.unwrap();
     let mut last_render_time = instant::Instant::now();
-    let region = region::Region::new();    
-    let (vertices, indices) = region.build_mesh();
     let mut egui_renderer = GuiRenderer::new(&state.device, state.surface_format, None, 1, &window);
+    let mut generation_params = egui_renderer.get_generation_params();
+    let mut region = region::Region::new([0, 0], generation_params);
+    let (vertices, indices) = region.build_mesh();
     state.set_buffers(vertices, indices);
     state.render(&mut egui_renderer, &window);
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
@@ -50,8 +52,9 @@ async fn run() {
                         last_render_time = now;
                         state.update(dt);
                         if egui_renderer.updated {
-                            let vertex_chunk = Chunk::new_random([0.0, -1.0, 0.0],egui_renderer.slider.into(),6);
-                            let (vertices, indices) = vertex_chunk.build_mesh(0);
+                            let generation_params = egui_renderer.get_generation_params();
+                            let region = region::Region::new([0, 0], generation_params);
+                            let (vertices, indices) = region.build_mesh();
                             state.set_buffers(vertices, indices);
                         }
                         egui_renderer.updated = false;

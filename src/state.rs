@@ -1,4 +1,5 @@
-use crate::camera::{ CameraUniform, DollyCamera};
+use crate::camera::{CameraUniform, DollyCamera};
+use crate::chunk::CHUNK_SIZE;
 use crate::gui::GuiRenderer;
 use crate::texture;
 use crate::vertex::Vertex;
@@ -29,12 +30,8 @@ impl State {
     pub async fn new(
         window: Arc<winit::window::Window>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        // get window size
         let size: winit::dpi::PhysicalSize<u32> = window.inner_size();
-        // create an instance with default settings
         let instance = wgpu::Instance::default();
-        // create surface and adapter from instance
-        // unsafe to make sure that when the window is closed, the surface is destroyed
         let surface = unsafe { instance.create_surface(window) }.unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -85,13 +82,15 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
         let mut dolly_cam = DollyCamera::new(
-            (0.0, 0.0, 0.0).into(),
+            [CHUNK_SIZE as f32 / 2.0, CHUNK_SIZE as f32 / 2.0],
+            [0.0, 0.0, 128.0],
             config.width as f32 / config.height as f32,
             45.0,
             0.1,
-            100.0,);
+            100.0,
+        );
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&mut dolly_cam);
+        camera_uniform.update_view_proj(&mut dolly_cam, 1.0 / 60.0);
 
         let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniform Buffer"),
@@ -167,7 +166,7 @@ impl State {
                 targets: &[Some(wgpu::ColorTargetState {
                     // 4.
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -186,7 +185,7 @@ impl State {
             depth_texture,
             len_indices: 0,
             surface_format,
-            dolly_cam
+            dolly_cam,
         })
     }
 
@@ -286,7 +285,9 @@ impl State {
     }
 
     pub fn update(&mut self, dt: instant::Duration) {
-        self.camera_uniform.update_view_proj(&mut self.dolly_cam);
+        // bad idea to set static delta time but dolly cam smoothness gets ruined with variable delta time
+        self.camera_uniform
+            .update_view_proj(&mut self.dolly_cam, 1.0 / 60.0);
         self.queue.write_buffer(
             &self.camera_uniform_buffer,
             0,

@@ -71,7 +71,7 @@ impl Quad {
         }
     }
 
-    pub fn get_corner_vertices(&self, color: [f32; 3]) -> Vec<Vertex> {
+    pub fn get_corner_vertices(&self, color: [f32; 4]) -> Vec<Vertex> {
         let mut vertices = Vec::new();
         for v in self.corners.iter() {
             vertices.push(Vertex {
@@ -101,6 +101,17 @@ impl Quad {
             Side::Bottom => (1, -1),
             Side::Front => (2, 1),
             Side::Back => (2, -1),
+        }
+    }
+
+    pub fn get_color_multiplier_for_side(side: &Side) -> f32 {
+        match side {
+            Side::Top => 1.0,
+            Side::Bottom => 1.0,
+            Side::Left => 0.8,
+            Side::Right => 0.8,
+            Side::Front => 0.9,
+            Side::Back => 0.9,
         }
     }
 }
