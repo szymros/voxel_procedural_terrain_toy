@@ -6,8 +6,6 @@ use winit::event::WindowEvent;
 use winit::window::Window;
 
 use crate::generation_params::GenerationParams;
-// use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
-//
 
 pub struct GuiRenderer {
     state: State,
@@ -77,10 +75,6 @@ impl GuiRenderer {
 
     pub fn handle_input(&mut self, window: &Window, event: &WindowEvent) {
         self.state.on_window_event(window, &event);
-    }
-
-    pub fn ppp(&mut self, v: f32) {
-        self.state.egui_ctx().set_pixels_per_point(v);
     }
 
     pub fn draw(

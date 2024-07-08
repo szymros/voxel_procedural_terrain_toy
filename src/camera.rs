@@ -1,11 +1,8 @@
-use crate::chunk::CHUNK_SIZE;
-use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
-use bytemuck::Contiguous;
 use dolly::prelude::*;
 use dolly::rig::CameraRig;
 use winit::{
     event::{ElementState, KeyEvent},
-    keyboard::{Key, NamedKey},
+    keyboard::Key,
 };
 
 const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(

@@ -1,6 +1,6 @@
 use crate::{
     chunk::Chunk,
-    generation_params::{self, GenerationParams},
+    generation_params::GenerationParams,
     vertex::Vertex,
 };
 const CHUNK_PER_ROW: i32 = 3;
