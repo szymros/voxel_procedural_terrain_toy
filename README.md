@@ -1,5 +1,5 @@
 ### Voxel procedural terrain generator
-Simple procedural terrain generator based on perlin noise. Just a camera orbiting around 9 chunks. Includes gui for generation param customization
+Simple procedural terrain generator based on perlin noise. Includes gui for generation param customization
 ![Alt text](/images/example.jpg?raw=true "How it looks")
 
 ### Resources that helped me make this disaster
